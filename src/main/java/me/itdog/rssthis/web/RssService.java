@@ -8,6 +8,8 @@ import net.sf.saxon.s9api.SaxonApiException;
 import net.sf.saxon.s9api.XdmItem;
 import net.sf.saxon.s9api.XdmValue;
 import org.apache.commons.codec.binary.Base64;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -38,6 +40,7 @@ public class RssService {
 
     XPathEvaluator evaluator = new HtmlXPathEvaluator();
     RarbgApi rarbgApi = new RarbgApi();
+    Logger logger = LoggerFactory.getLogger(getClass());
 
     private static String buildXml(List<String> titleStrValues, final List<String> linkStrValues, List<String> descStrValues) throws ParserConfigurationException, TransformerException {
         DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
@@ -172,29 +175,35 @@ public class RssService {
             searchResult = rarbgApi.searchImdb(searchImdb);
         }
 
-        JsonArray arr = new JsonParser().parse(searchResult)
+        Optional<JsonArray> arrOpt = Optional.ofNullable(new JsonParser().parse(searchResult)
                 .getAsJsonObject()
-                .getAsJsonArray("torrent_results");
+                .getAsJsonArray("torrent_results"));
+
+        logger.info("search_result=" + searchResult);
+
+        if (!arrOpt.isPresent()) {
+            return ResponseEntity.status(500).body("Failed to parse search result");
+        }
 
         if (regex != null && !regex.isEmpty()) {
             Pattern pattern = Pattern.compile(regex);
 
             Set<JsonElement> toRemove = new HashSet<>();
 
-            arr.forEach((ele) -> {
+            arrOpt.get().forEach((ele) -> {
                 JsonObject obj = ele.getAsJsonObject();
                 String title = obj.getAsJsonPrimitive("filename").getAsString();
                 if (!pattern.matcher(title).matches())
                     toRemove.add(ele);
             });
 
-            toRemove.forEach(arr::remove);
+            toRemove.forEach(arrOpt.get()::remove);
         }
 
         List<String> titleStrValues = new ArrayList<>();
         List<String> linkStrValues = new ArrayList<>();
         List<String> descStrValues = new ArrayList<>();
-        arr.forEach((ele) -> {
+        arrOpt.get().forEach((ele) -> {
             JsonObject obj = ele.getAsJsonObject();
             titleStrValues.add(obj.getAsJsonPrimitive("filename").getAsString());
             linkStrValues.add(obj.getAsJsonPrimitive("download").getAsString());
