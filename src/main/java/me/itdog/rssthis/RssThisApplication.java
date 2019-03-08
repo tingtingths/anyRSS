@@ -1,14 +1,11 @@
 package me.itdog.rssthis;
 
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import springfox.documentation.swagger2.annotations.EnableSwagger2;
 
-@SpringBootApplication
-@EnableSwagger2
+import me.itdog.rssthis.web.RssService;
+
 public class RssThisApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(RssThisApplication.class, args);
+        new RssService();
     }
 }

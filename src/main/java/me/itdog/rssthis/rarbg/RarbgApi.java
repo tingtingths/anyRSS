@@ -8,6 +8,8 @@ import okio.BufferedSource;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class RarbgApi {
@@ -61,6 +63,11 @@ public class RarbgApi {
     }
 
     class TokenRefreshInterceptor implements Interceptor {
+
+        private final Set<Integer> TOKEN_ERRORS = new HashSet<Integer>(){{
+            add(2);
+            add(4);
+        }};
 
         private String getToken() throws IOException {
             String urlStr = BASE_URL + "&get_token=get_token";
@@ -139,7 +146,8 @@ public class RarbgApi {
                 String respString = buffer.clone().readString(StandardCharsets.UTF_8);
                 JsonObject result = parser.parse(respString).getAsJsonObject();
 
-                if (result.has("error_code") && result.get("error_code").getAsInt() == 2) {
+
+                if (result.has("error_code") && TOKEN_ERRORS.contains(result.get("error_code").getAsInt())) {
                     // refresh token
                     token = getToken();
 

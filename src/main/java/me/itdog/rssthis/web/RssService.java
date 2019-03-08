@@ -10,13 +10,11 @@ import net.sf.saxon.s9api.XdmValue;
 import org.apache.commons.codec.binary.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import spark.Spark;
+import spark.embeddedserver.jetty.EmbeddedJettyFactory;
+import spark.utils.SparkUtils;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -35,12 +33,147 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-@Controller
+import static spark.Spark.*;
+
 public class RssService {
 
     XPathEvaluator evaluator = new HtmlXPathEvaluator();
     RarbgApi rarbgApi = new RarbgApi();
     Logger logger = LoggerFactory.getLogger(getClass());
+
+    public RssService() {
+        port(80);
+
+        // html xpath evaluate
+        get("/xeva", (req, resp) -> {
+            // params
+            String src = req.queryParams("src");
+            List<String> queries = Arrays.asList(req.queryParamsValues("xpath"));
+
+            if (src == null || src.isEmpty() || queries.isEmpty()) {
+                resp.status(400);
+                return "Invalid parameters.";
+            }
+
+            if (Base64.isBase64(src))
+                src = new String(Base64.decodeBase64(src));
+
+            setEvaluatorSrc(src, evaluator);
+
+            Map<String, List<String>> queriesResults = new HashMap<>();
+            for (String xpath : queries) {
+                List<String> items = new ArrayList<>();
+                XdmValue result = evaluator.evaluate(xpath);
+                result.iterator().forEachRemaining((item) -> {
+                    items.add(item.getStringValue());
+                });
+                queriesResults.put(xpath, items);
+            }
+
+            JsonObject respObj = new JsonObject();
+            respObj.add("src", new JsonPrimitive(src));
+            respObj.add("result", new Gson().toJsonTree(queriesResults));
+
+            resp.type("application/json");
+            return respObj;
+        });
+
+        // html -> rss
+        get("/rssthis", (req, resp) -> {
+            // params
+            String src = req.queryParams("src");
+            String titleXPath = req.queryParams("title_xpath");
+            String linkXPath = req.queryParams("link_xpath");
+            String descXPath = req.queryParams("desc_xpath");
+
+            if (src == null || src.isEmpty()
+                    || titleXPath == null || titleXPath.isEmpty()
+                    || linkXPath == null || linkXPath.isEmpty()
+                    || descXPath == null || descXPath.isEmpty()) {
+                resp.status(400);
+                return "Invalid parameters.";
+            }
+
+            if (Base64.isBase64(src))
+                src = new String(Base64.decodeBase64(src));
+
+            setEvaluatorSrc(src, evaluator);
+
+            List<String> titleStrValues = evaluator.evaluate(titleXPath).stream()
+                    .map(XdmItem::getStringValue)
+                    .collect(Collectors.toList());
+
+            List<String> linkStrValues = evaluator.evaluate(linkXPath).stream()
+                    .map(XdmItem::getStringValue)
+                    .collect(Collectors.toList());
+
+            List<String> descStrValues = evaluator.evaluate(descXPath).stream()
+                    .map(XdmItem::getStringValue)
+                    .collect(Collectors.toList());
+
+            resp.type("application/xml");
+            return buildXml(titleStrValues, linkStrValues, descStrValues);
+        });
+
+        // rarbg api wrap
+        get("/rarbg", (req, resp) -> {
+            // params
+            String searchKeywords = req.queryParams("search_string");
+            String searchImdb = req.queryParams("search_imdb");
+            String regex = req.queryParams("regex");
+
+            String searchResult = null;
+
+            if (searchKeywords != null && !searchKeywords.isEmpty()) {
+                searchResult = rarbgApi.searchKeywords(searchKeywords);
+            } else if (searchImdb != null && !searchImdb.isEmpty()) {
+                searchResult = rarbgApi.searchImdb(searchImdb);
+            } else {
+                resp.status(400);
+                return "Invalid parameters.";
+            }
+
+
+            Optional<JsonArray> arrOpt = Optional.ofNullable(new JsonParser().parse(searchResult)
+                    .getAsJsonObject()
+                    .getAsJsonArray("torrent_results"));
+
+            logger.info("search_result=" + searchResult);
+
+            if (!arrOpt.isPresent()) {
+                resp.status(500);
+                return "Failed to parse search result";
+            }
+
+            if (regex != null && !regex.isEmpty()) {
+                Pattern pattern = Pattern.compile(regex);
+
+                Set<JsonElement> toRemove = new HashSet<>();
+
+                arrOpt.get().forEach((ele) -> {
+                    JsonObject obj = ele.getAsJsonObject();
+                    String title = obj.getAsJsonPrimitive("filename").getAsString();
+                    if (!pattern.matcher(title).matches())
+                        toRemove.add(ele);
+                });
+
+                toRemove.forEach(arrOpt.get()::remove);
+            }
+
+            List<String> titleStrValues = new ArrayList<>();
+            List<String> linkStrValues = new ArrayList<>();
+            List<String> descStrValues = new ArrayList<>();
+            arrOpt.get().forEach((ele) -> {
+                JsonObject obj = ele.getAsJsonObject();
+                titleStrValues.add(obj.getAsJsonPrimitive("filename").getAsString());
+                linkStrValues.add(obj.getAsJsonPrimitive("download").getAsString());
+                descStrValues.add(obj.getAsJsonPrimitive("category").getAsString());
+            });
+
+            resp.type("application/xml");
+            return buildXml(titleStrValues, linkStrValues, descStrValues);
+        });
+    }
 
     private static String buildXml(List<String> titleStrValues, final List<String> linkStrValues, List<String> descStrValues) throws ParserConfigurationException, TransformerException {
         DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
@@ -105,112 +238,6 @@ public class RssService {
         transformer.transform(source, result);
 
         return writer.getBuffer().toString();
-    }
-
-    @GetMapping(value = "/xeva", produces = MediaType.APPLICATION_JSON_VALUE)
-    public JsonElement xpathEva(
-            @RequestParam(value = "src") String src,
-            @RequestParam(value = "xpath") List<String> queries) throws IOException, SaxonApiException {
-        if (Base64.isBase64(src))
-            src = new String(Base64.decodeBase64(src));
-
-        setEvaluatorSrc(src, evaluator);
-
-        Map<String, List<String>> queriesResults = new HashMap<>();
-        for (String xpath : queries) {
-            List<String> items = new ArrayList<>();
-            XdmValue result = evaluator.evaluate(xpath);
-            result.iterator().forEachRemaining((item) -> {
-                items.add(item.getStringValue());
-            });
-            queriesResults.put(xpath, items);
-        }
-
-        JsonObject respObj = new JsonObject();
-        respObj.add("src", new JsonPrimitive(src));
-        respObj.add("result", new Gson().toJsonTree(queriesResults));
-        return respObj;
-    }
-
-    @GetMapping(value = "/rssthis", produces = MediaType.APPLICATION_XML_VALUE)
-    public ResponseEntity<String> rssThis(
-            @RequestParam(value = "src") String src,
-            @RequestParam(value = "title_xpath") String titleXPath,
-            @RequestParam(value = "link_xpath") String linkXPath,
-            @RequestParam(value = "desc_xpath") String descXPath) throws IOException, SaxonApiException, TransformerException, ParserConfigurationException {
-        if (Base64.isBase64(src))
-            src = new String(Base64.decodeBase64(src));
-
-        setEvaluatorSrc(src, evaluator);
-
-        List<String> titleStrValues = evaluator.evaluate(titleXPath).stream()
-                .map(XdmItem::getStringValue)
-                .collect(Collectors.toList());
-
-        List<String> linkStrValues = evaluator.evaluate(linkXPath).stream()
-                .map(XdmItem::getStringValue)
-                .collect(Collectors.toList());
-
-        List<String> descStrValues = evaluator.evaluate(descXPath).stream()
-                .map(XdmItem::getStringValue)
-                .collect(Collectors.toList());
-
-        return ResponseEntity.ok(buildXml(titleStrValues, linkStrValues, descStrValues));
-    }
-
-    @GetMapping(value = "/rarbg", produces = MediaType.APPLICATION_XML_VALUE)
-    public ResponseEntity<String> rarbgRss(
-            @RequestParam(value = "search_string", defaultValue = "") String searchKeywords,
-            @RequestParam(value = "search_imdb", defaultValue = "") String searchImdb,
-            @RequestParam(value = "regex", required = false) String regex) throws IOException, TransformerException, ParserConfigurationException {
-        String searchResult = null;
-
-        if (searchImdb.isEmpty() && searchKeywords.isEmpty()) {
-            return ResponseEntity.badRequest().body("No search param provided!");
-        }
-
-        if (!searchKeywords.isEmpty()) {
-            searchResult = rarbgApi.searchKeywords(searchKeywords);
-        } else if (!searchImdb.isEmpty()) {
-            searchResult = rarbgApi.searchImdb(searchImdb);
-        }
-
-        Optional<JsonArray> arrOpt = Optional.ofNullable(new JsonParser().parse(searchResult)
-                .getAsJsonObject()
-                .getAsJsonArray("torrent_results"));
-
-        logger.info("search_result=" + searchResult);
-
-        if (!arrOpt.isPresent()) {
-            return ResponseEntity.status(500).body("Failed to parse search result");
-        }
-
-        if (regex != null && !regex.isEmpty()) {
-            Pattern pattern = Pattern.compile(regex);
-
-            Set<JsonElement> toRemove = new HashSet<>();
-
-            arrOpt.get().forEach((ele) -> {
-                JsonObject obj = ele.getAsJsonObject();
-                String title = obj.getAsJsonPrimitive("filename").getAsString();
-                if (!pattern.matcher(title).matches())
-                    toRemove.add(ele);
-            });
-
-            toRemove.forEach(arrOpt.get()::remove);
-        }
-
-        List<String> titleStrValues = new ArrayList<>();
-        List<String> linkStrValues = new ArrayList<>();
-        List<String> descStrValues = new ArrayList<>();
-        arrOpt.get().forEach((ele) -> {
-            JsonObject obj = ele.getAsJsonObject();
-            titleStrValues.add(obj.getAsJsonPrimitive("filename").getAsString());
-            linkStrValues.add(obj.getAsJsonPrimitive("download").getAsString());
-            descStrValues.add(obj.getAsJsonPrimitive("category").getAsString());
-        });
-
-        return ResponseEntity.ok(buildXml(titleStrValues, linkStrValues, descStrValues));
     }
 
     private void setEvaluatorSrc(String src, XPathEvaluator evaluator) throws SaxonApiException, IOException {
