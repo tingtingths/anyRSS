@@ -8,13 +8,11 @@ import net.sf.saxon.s9api.SaxonApiException;
 import net.sf.saxon.s9api.XdmItem;
 import net.sf.saxon.s9api.XdmValue;
 import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import spark.Spark;
-import spark.embeddedserver.jetty.EmbeddedJettyFactory;
-import spark.utils.SparkUtils;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -33,7 +31,9 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static spark.Spark.*;
+import static org.apache.commons.lang3.StringUtils.isBlank;
+import static spark.Spark.get;
+import static spark.Spark.port;
 
 public class RssService {
 
@@ -86,10 +86,7 @@ public class RssService {
             String linkXPath = req.queryParams("link_xpath");
             String descXPath = req.queryParams("desc_xpath");
 
-            if (src == null || src.isEmpty()
-                    || titleXPath == null || titleXPath.isEmpty()
-                    || linkXPath == null || linkXPath.isEmpty()
-                    || descXPath == null || descXPath.isEmpty()) {
+            if (isBlank(src) || isBlank(titleXPath) || isBlank(linkXPath) || isBlank(descXPath)) {
                 resp.status(400);
                 return "Invalid parameters.";
             }
@@ -120,19 +117,19 @@ public class RssService {
             // params
             String searchKeywords = req.queryParams("search_string");
             String searchImdb = req.queryParams("search_imdb");
+            Integer limit = tryParse(req.queryParams("limit"));
             String regex = req.queryParams("regex");
 
             String searchResult = null;
 
-            if (searchKeywords != null && !searchKeywords.isEmpty()) {
-                searchResult = rarbgApi.searchKeywords(searchKeywords);
-            } else if (searchImdb != null && !searchImdb.isEmpty()) {
-                searchResult = rarbgApi.searchImdb(searchImdb);
+            if (!StringUtils.isBlank(searchKeywords)) {
+                searchResult = rarbgApi.searchKeywords(searchKeywords, limit);
+            } else if (!StringUtils.isBlank(searchImdb)) {
+                searchResult = rarbgApi.searchImdb(searchImdb, limit);
             } else {
                 resp.status(400);
                 return "Invalid parameters.";
             }
-
 
             Optional<JsonArray> arrOpt = Optional.ofNullable(new JsonParser().parse(searchResult)
                     .getAsJsonObject()
@@ -145,7 +142,7 @@ public class RssService {
                 return "Failed to parse search result";
             }
 
-            if (regex != null && !regex.isEmpty()) {
+            if (!isBlank(regex)) {
                 Pattern pattern = Pattern.compile(regex);
 
                 Set<JsonElement> toRemove = new HashSet<>();
@@ -238,6 +235,18 @@ public class RssService {
         transformer.transform(source, result);
 
         return writer.getBuffer().toString();
+    }
+
+    static Integer tryParse(String text) {
+        return tryParse(text, null);
+    }
+
+    static Integer tryParse(String text, Integer defValue) {
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException e) {
+            return defValue;
+        }
     }
 
     private void setEvaluatorSrc(String src, XPathEvaluator evaluator) throws SaxonApiException, IOException {

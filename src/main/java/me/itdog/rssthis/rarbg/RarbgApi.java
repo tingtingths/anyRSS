@@ -35,16 +35,17 @@ public class RarbgApi {
         return client.newCall(req).execute();
     }
 
-    public String searchKeywords(String keyword) throws IOException {
-        return search(SearchType.KEYWORDS, keyword);
+    public String searchKeywords(String keyword, Integer limit) throws IOException {
+        return search(SearchType.KEYWORDS, keyword, limit);
     }
 
-    public String searchImdb(String imdbId) throws IOException {
-        return search(SearchType.IMDB, imdbId);
+    public String searchImdb(String imdbId, Integer limit) throws IOException {
+        return search(SearchType.IMDB, imdbId, limit);
     }
 
-    public String search(SearchType searchType, String searchStr) throws IOException {
-        Response resp = get(BASE_URL + "&mode=search&token=" + token + "&" + searchType.paramValue() + "=" + searchStr);
+    public String search(SearchType searchType, String searchStr, Integer limit) throws IOException {
+        limit = limit == null ? 25 : limit;
+        Response resp = get(BASE_URL + "&mode=search&token=" + token + "&" + searchType.paramValue() + "=" + searchStr + "&limit=" + limit);
         return resp.body().string();
     }
 
@@ -64,7 +65,7 @@ public class RarbgApi {
 
     class TokenRefreshInterceptor implements Interceptor {
 
-        private final Set<Integer> TOKEN_ERRORS = new HashSet<Integer>(){{
+        private final Set<Integer> TOKEN_ERRORS = new HashSet<Integer>() {{
             add(2);
             add(4);
         }};
