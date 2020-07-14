@@ -1,6 +1,6 @@
 # RSSTHIS
 
-Web APIs to turns html into rss.
+Web APIs for xpath evaluation with [Saxon](http://www.saxonica.com/documentation/).
 
 Endpoints
 - `/xeva`
