@@ -23,6 +23,7 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -32,8 +33,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.apache.commons.lang3.StringUtils.isBlank;
-import static spark.Spark.get;
-import static spark.Spark.port;
+import static spark.Spark.*;
 
 public class RssService {
 
@@ -169,6 +169,38 @@ public class RssService {
 
             resp.type("application/xml");
             return buildXml(titleStrValues, linkStrValues, descStrValues);
+        });
+
+        exception(SaxonApiException.class, (exc, req, resp) -> {
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
+            exc.printStackTrace(pw);
+
+            // Handle the exception here
+            resp.status(400);
+            resp.type("application/json");
+
+            JsonObject errObj = new JsonObject();
+            errObj.addProperty("error_message", exc.getMessage());
+            errObj.addProperty("stacktrace", sw.toString());
+
+            resp.body(errObj.toString());
+        });
+
+        exception(Exception.class, (exc, req, resp) -> {
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
+            exc.printStackTrace(pw);
+
+            // Handle the exception here
+            resp.status(500);
+            resp.type("application/json");
+
+            JsonObject errObj = new JsonObject();
+            errObj.addProperty("error_message", exc.toString());
+            errObj.addProperty("stacktrace", sw.toString());
+
+            resp.body(errObj.toString());
         });
     }
 

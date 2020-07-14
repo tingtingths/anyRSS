@@ -10,18 +10,20 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 public class RarbgApi {
 
-    private static final String APP_ID = "rss_this_rarbg";
-    private static final String BASE_URL = "https://torrentapi.org/pubapi_v2.php?app_id=" + APP_ID;
     private static final long WAIT_MILLIS = 2000L;
+    private static String APP_ID = "rss_this_rarbg";
+    private static final String BASE_URL = "https://torrentapi.org/pubapi_v2.php?app_id=" + APP_ID;
     private OkHttpClient client;
     private String token = "";
     private long lastReq = 0;
 
     public RarbgApi() {
+        APP_ID += "_" + UUID.randomUUID().toString();
         client = new OkHttpClient.Builder()
                 .addInterceptor(new TokenRefreshInterceptor())
                 .build();
