@@ -14,6 +14,6 @@ RUN mkdir /app
 
 WORKDIR app
 
-COPY --from=builder /app/target/*-jar-with-dependencies.jar /app/
+COPY --from=builder /app/target/rssthis-jar-with-dependencies.jar /app/
 
-ENTRYPOINT ["java", "-jar", "/app/*-jar-with-dependencies.jar"]
+ENTRYPOINT ["java", "-jar", "/app/rssthis-jar-with-dependencies.jar"]
