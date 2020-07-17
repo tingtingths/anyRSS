@@ -1,6 +1,6 @@
 FROM maven:3.6-jdk-8 as builder
 
-COPY * /app/
+COPY . /app/
 
 WORKDIR /app
 
