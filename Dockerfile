@@ -16,4 +16,4 @@ WORKDIR app
 
 COPY --from=builder /app/target/*-jar-with-dependencies.jar /app/
 
-CMD ["java", "-jar", "/app/*-jar-with-dependencies.jar"]
+ENTRYPOINT ["java", "-jar", "/app/*-jar-with-dependencies.jar"]
