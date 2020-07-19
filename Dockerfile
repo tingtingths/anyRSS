@@ -16,4 +16,6 @@ WORKDIR app
 
 COPY --from=builder /app/target/rssthis-jar-with-dependencies.jar /app/
 
+EXPOSE 80
+
 ENTRYPOINT ["java", "-jar", "/app/rssthis-jar-with-dependencies.jar"]
