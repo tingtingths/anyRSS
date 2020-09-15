@@ -1,12 +1,12 @@
 # RSSTHIS
 
-Web APIs for xpath evaluation with [Saxon](http://www.saxonica.com/documentation/).
+Web APIs for xpath evaluation and turning HTML to RSS with [Saxon](http://www.saxonica.com/documentation/).
 
 Endpoints
-- `/xeva`
+- `/xeva` - `Evaulate xpath`
     - `src` - URI or base64 encoded html
     - `xpath` - xpath to evaluate
-- `/rssthis`
+- `/rssthis` - `Construct RSS source with xpath`
     - `src` - URI or base64 encoded html
     - `title_xpath` - xpath to extract item title
     - `link_xpath` - xpath to extract item link
