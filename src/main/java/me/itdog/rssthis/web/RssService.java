@@ -1,6 +1,11 @@
 package me.itdog.rssthis.web;
 
-import com.google.gson.*;
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
 import me.itdog.rssthis.evaluate.HtmlXPathEvaluator;
 import me.itdog.rssthis.evaluate.XPathEvaluator;
 import me.itdog.rssthis.rarbg.RarbgApi;
@@ -27,13 +32,22 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.apache.commons.lang3.StringUtils.isBlank;
-import static spark.Spark.*;
+import static spark.Spark.exception;
+import static spark.Spark.get;
+import static spark.Spark.port;
 
 public class RssService {
 
@@ -41,8 +55,8 @@ public class RssService {
     RarbgApi rarbgApi = new RarbgApi();
     Logger logger = LoggerFactory.getLogger(getClass());
 
-    public RssService() {
-        port(80);
+    public RssService(int port) {
+        port(port);
 
         // html xpath evaluate
         get("/xeva", (req, resp) -> {
@@ -218,9 +232,9 @@ public class RssService {
         rss.appendChild(channel);
 
         class Zipped {
-            String title;
-            String link;
-            String desc;
+            final String title;
+            final String link;
+            final String desc;
 
             Zipped(String title, String link, String desc) {
                 this.title = title;
@@ -234,7 +248,6 @@ public class RssService {
                 .range(0, Math.min(Math.min(titleStrValues.size(), linkStrValues.size()), descStrValues.size()))
                 .mapToObj(i -> new Zipped(titleStrValues.get(i), linkStrValues.get(i), descStrValues.get(i)))
                 .collect(Collectors.toList());
-
 
         // create item
         zipped.forEach((zip) -> {
