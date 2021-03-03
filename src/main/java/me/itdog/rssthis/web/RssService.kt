@@ -123,8 +123,9 @@ class RssService(val port: Int, val proxy: Proxy?) {
             val evaluator = HtmlEvaluator()
 
             // params
-            var src = req.queryParams("src") // src could be uri or base64 encoded xml
-            var queries = req.queryParamsValues("xpath").toList()
+            val src = req.queryParams("src") // src could be uri or base64 encoded xml
+            val queries = req.queryParamsValues("xpath").toList()
+            var evaluatorSrc: String
 
             if (src == null || src.isBlank() || queries.isEmpty()) {
                 resp.status(400)
@@ -132,8 +133,9 @@ class RssService(val port: Int, val proxy: Proxy?) {
             }
 
             if (Base64.isBase64(src)) {
-                src = String(Base64.decodeBase64(src))
+                evaluatorSrc = String(Base64.decodeBase64(src))
             } else {
+                evaluatorSrc = src
                 try {
                     // fetch source
                     val srcResp = httpClient.newCall(
@@ -145,14 +147,14 @@ class RssService(val port: Int, val proxy: Proxy?) {
                         resp.status(400)
                         return@get "Failed to retrieve source."
                     }
-                    src = srcResp.body()!!.string()
+                    evaluatorSrc = srcResp.body()!!.string()
                 } catch (ignored: URISyntaxException) {
                 } catch (e: SocketException) {
                     resp.status(400)
                     return@get "Failed to retrieve source. ${e.message}"
                 }
             }
-            evaluator.setSource(src)
+            evaluator.setSource(evaluatorSrc)
 
             val queryResult = HashMap<String, List<String>>()
             queries.forEach { query ->
