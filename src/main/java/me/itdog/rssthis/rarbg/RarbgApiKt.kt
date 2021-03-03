@@ -1,31 +1,50 @@
 package me.itdog.rssthis.rarbg
 
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import okhttp3.Interceptor
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
+import okhttp3.*
+import java.net.Proxy
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.*
 import java.util.concurrent.*
 
 class RarbgApiKt {
 
-    val APP_ID: String = "rssthis_rarbg-${UUID.randomUUID()}"
-    var client: OkHttpClient
-    val REQ_WAIT_MILLIS = 2000L // rate control
-    val executor = ThreadPoolExecutor(
+    private val APP_ID: String = "rssthis_rarbg-${UUID.randomUUID()}"
+    private val REQ_WAIT_MILLIS = 2000L // rate control
+    private val executor = ThreadPoolExecutor(
         1, 1, 60, TimeUnit.SECONDS,
         LinkedBlockingQueue()
     ) // single thread request for rate control
-    val BASE_URL = "https://torrentapi.org/pubapi_v2.php?app_id=$APP_ID"
-    var token = ""
-    var lastRequestMillis = 0L
+    private val BASE_URL = "https://torrentapi.org/pubapi_v2.php?app_id=$APP_ID"
+    private var token = ""
+    private var lastRequestMillis = 0L
+
+    // okhttp
+    private val client: OkHttpClient
+    private val testClient: OkHttpClient
 
     init {
+        executor.allowCoreThreadTimeOut(true)
+    }
+
+    constructor() {
         client = OkHttpClient().newBuilder()
             .addInterceptor(TokenRefreshInterceptor())
             .build()
-        executor.allowCoreThreadTimeOut(true)
+        testClient = OkHttpClient().newBuilder()
+            .build()
+    }
+
+    constructor(proxy: Proxy) {
+        client = OkHttpClient().newBuilder()
+            .addInterceptor(TokenRefreshInterceptor())
+            .proxy(proxy)
+            .build()
+        testClient = OkHttpClient().newBuilder()
+            .proxy(proxy)
+            .build()
     }
 
     inner class TokenRefreshInterceptor : Interceptor {
@@ -37,6 +56,7 @@ class RarbgApiKt {
             val toSleep = REQ_WAIT_MILLIS - (System.currentTimeMillis() - lastRequestMillis)
             if (toSleep > 0) {
                 try {
+                    println("[${DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.now())}] Sleep $toSleep ms")
                     Thread.sleep(toSleep)
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -44,21 +64,30 @@ class RarbgApiKt {
             }
 
             // add/replace token
+            if (token.isEmpty()) token = getToken()
             req = req.newWithToken(token)
 
             var resp = chain.proceed(req)
+            println("[${DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.now())}] ${req.url()}")
             lastRequestMillis = System.currentTimeMillis()
 
             // retry request for token related error
             if (resp.isSuccessful && resp.body() != null) {
+                val contentType = resp.body()!!.contentType()
+                val content = resp.body()!!.string()
+
                 val parser = JsonParser()
-                val result = parser.parse(resp.body()!!.string()).asJsonObject
+                val result = parser.parse(content).asJsonObject
                 if (result.has("error_code")
                     && setOf(2, 4).contains(result.get("error_code").asInt)
                 ) {
                     token = getToken()
                     resp = chain.proceed(req.newWithToken(token))
+                    println("[${DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.now())}] ${req.url()}")
                     lastRequestMillis = System.currentTimeMillis()
+                } else {
+                    // we have to create a new response object as we already consumed the content
+                    resp = resp.newBuilder().body(ResponseBody.create(contentType, content)).build()
                 }
             }
 
@@ -74,7 +103,7 @@ class RarbgApiKt {
         }
 
         private fun getToken(): String {
-            val tokenClient = OkHttpClient.Builder().build()
+            val tokenClient = OkHttpClient.Builder().build() // new client for token request, to avoid being intercepted
             val resp = tokenClient.newCall(
                 Request.Builder()
                     .get()
@@ -95,28 +124,38 @@ class RarbgApiKt {
         KEYWORD("search_string"), IMDB("search_imdb")
     }
 
+    fun ipInfo(): JsonObject {
+        return Request.Builder()
+            .get()
+            .url("https://ipinfo.io/json")
+            .build()
+            .run {
+                val resp = testClient.newCall(this).execute()
+                val parser = JsonParser()
+                parser.parse(resp.body()!!.string()).asJsonObject
+            }
+    }
+
     private fun get(url: String): Response {
         return Request.Builder()
             .get()
             .url(url)
             .build()
-            .let {
-                client.newCall(it).execute()
-            }
+            .run { client.newCall(this).execute() }
     }
 
-    fun search(type: SearchType, value: String, limit: Integer?): Future<String> {
+    fun search(type: SearchType, value: String, limit: Int?): Future<String> {
         return executor.submit(Callable {
             get("$BASE_URL&mode=search&${type.queryParam}=$value&limit=${limit ?: 25}")
                 .body()?.string() ?: ""
         })
     }
 
-    fun searchKeyword(keyword: String, limit: Integer?): Future<String> {
+    fun searchKeyword(keyword: String, limit: Int?): Future<String> {
         return search(SearchType.KEYWORD, keyword, limit)
     }
 
-    fun searchImdb(imdbId: String, limit: Integer?): Future<String> {
+    fun searchImdb(imdbId: String, limit: Int?): Future<String> {
         return search(SearchType.IMDB, imdbId, limit)
     }
 }
