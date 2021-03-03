@@ -1,14 +1,14 @@
 package me.itdog.rssthis
 
 import com.google.gson.JsonParser
-import me.itdog.rssthis.rarbg.RarbgApiKt
+import me.itdog.rssthis.rarbg.RarbgApi
 import org.junit.jupiter.api.Test
 import java.net.InetSocketAddress
 import java.net.Proxy
 
 class RarbgApiTest {
 
-    val api = RarbgApiKt(
+    val api = RarbgApi(
         Proxy(Proxy.Type.SOCKS, InetSocketAddress("localhost", 58080))
     )
 

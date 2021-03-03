@@ -9,7 +9,7 @@ import java.time.format.DateTimeFormatter
 import java.util.*
 import java.util.concurrent.*
 
-class RarbgApiKt {
+class RarbgApi(proxy: Proxy?) {
 
     private val APP_ID: String = "rssthis_rarbg-${UUID.randomUUID()}"
     private val REQ_WAIT_MILLIS = 2000L // rate control
@@ -27,17 +27,6 @@ class RarbgApiKt {
 
     init {
         executor.allowCoreThreadTimeOut(true)
-    }
-
-    constructor() {
-        client = OkHttpClient().newBuilder()
-            .addInterceptor(TokenRefreshInterceptor())
-            .build()
-        testClient = OkHttpClient().newBuilder()
-            .build()
-    }
-
-    constructor(proxy: Proxy) {
         client = OkHttpClient().newBuilder()
             .addInterceptor(TokenRefreshInterceptor())
             .proxy(proxy)
@@ -46,6 +35,8 @@ class RarbgApiKt {
             .proxy(proxy)
             .build()
     }
+
+    constructor() : this(null)
 
     inner class TokenRefreshInterceptor : Interceptor {
         override fun intercept(chain: Interceptor.Chain): Response {

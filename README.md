@@ -3,6 +3,7 @@
 Web APIs for xpath evaluation and turning HTML to RSS with [Saxon](http://www.saxonica.com/documentation/).
 
 Endpoints
+
 - `/xeva` - `Evaulate xpath`
     - `src` - URI or base64 encoded html
     - `xpath` - xpath to evaluate
@@ -18,9 +19,10 @@ Endpoints
     - `regex` - regex to filter the search result
 
 Examples
+
 - `/xeva` Evaluate xpath with html
     - `src`
-        - `https://www.archlinux.org/packages/?sort=&repo=Core&q=linux-&maintainer=&flagged=`  
+        - `https://www.archlinux.org/packages/?sort=&repo=Core&q=linux-&maintainer=&flagged=`
     - `xpath`
         - `//*[@id="pkglist-results-form"]/table/tbody/tr/td[3]/a`
     ```json
