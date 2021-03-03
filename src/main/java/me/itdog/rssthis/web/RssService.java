@@ -6,9 +6,10 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
-import me.itdog.rssthis.evaluate.HtmlXPathEvaluator;
+import me.itdog.rssthis.evaluate.HtmlEvaluator;
 import me.itdog.rssthis.evaluate.XPathEvaluator;
 import me.itdog.rssthis.rarbg.RarbgApi;
+import me.itdog.rssthis.rarbg.RarbgApiKt;
 import net.sf.saxon.s9api.SaxonApiException;
 import net.sf.saxon.s9api.XdmItem;
 import net.sf.saxon.s9api.XdmValue;
@@ -51,8 +52,8 @@ import static spark.Spark.port;
 
 public class RssService {
 
-    XPathEvaluator evaluator = new HtmlXPathEvaluator();
-    RarbgApi rarbgApi = new RarbgApi();
+    XPathEvaluator evaluator = new HtmlEvaluator();
+    RarbgApiKt rarbgApi = new RarbgApiKt();
     Logger logger = LoggerFactory.getLogger(getClass());
 
     public RssService(int port) {
@@ -137,7 +138,7 @@ public class RssService {
             String searchResult = null;
 
             if (!StringUtils.isBlank(searchKeywords)) {
-                searchResult = rarbgApi.searchKeywords(searchKeywords, limit);
+                searchResult = rarbgApi.searchKeyword(searchKeywords, limit);
             } else if (!StringUtils.isBlank(searchImdb)) {
                 searchResult = rarbgApi.searchImdb(searchImdb, limit);
             } else {
