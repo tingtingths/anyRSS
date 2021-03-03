@@ -6,23 +6,27 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import java.util.*
+import java.util.concurrent.*
 
 class RarbgApiKt {
 
     val APP_ID: String = "rssthis_rarbg-${UUID.randomUUID()}"
     var client: OkHttpClient
-
-    init {
-        client = OkHttpClient().newBuilder()
-            // TODO : add token refresh interceptor
-            .addInterceptor(TokenRefreshInterceptor())
-            .build()
-    }
-
     val REQ_WAIT_MILLIS = 2000L // rate control
+    val executor = ThreadPoolExecutor(
+        1, 1, 60, TimeUnit.SECONDS,
+        LinkedBlockingQueue()
+    ) // single thread request for rate control
     val BASE_URL = "https://torrentapi.org/pubapi_v2.php?app_id=$APP_ID"
     var token = ""
     var lastRequestMillis = 0L
+
+    init {
+        client = OkHttpClient().newBuilder()
+            .addInterceptor(TokenRefreshInterceptor())
+            .build()
+        executor.allowCoreThreadTimeOut(true)
+    }
 
     inner class TokenRefreshInterceptor : Interceptor {
         override fun intercept(chain: Interceptor.Chain): Response {
@@ -45,10 +49,13 @@ class RarbgApiKt {
             var resp = chain.proceed(req)
             lastRequestMillis = System.currentTimeMillis()
 
+            // retry request for token related error
             if (resp.isSuccessful && resp.body() != null) {
                 val parser = JsonParser()
                 val result = parser.parse(resp.body()!!.string()).asJsonObject
-                if (result.has("error_code") && setOf<Int>(2, 4).contains(result.get("error_code").asInt)) {
+                if (result.has("error_code")
+                    && setOf(2, 4).contains(result.get("error_code").asInt)
+                ) {
                     token = getToken()
                     resp = chain.proceed(req.newWithToken(token))
                     lastRequestMillis = System.currentTimeMillis()
@@ -76,13 +83,11 @@ class RarbgApiKt {
             ).execute()
             lastRequestMillis = System.currentTimeMillis()
 
-            var token = ""
-            if (resp.body()?.string() != null) {
+            // parse or return empty string
+            return resp.body()?.string().let {
                 val parser = JsonParser()
-                token = parser.parse(resp.body()!!.string()).asJsonObject
-                    .getAsJsonPrimitive("token").asString
-            }
-            return token
+                parser.parse(it).asJsonObject.getAsJsonPrimitive("token").asString
+            } ?: ""
         }
     }
 
@@ -100,17 +105,18 @@ class RarbgApiKt {
             }
     }
 
-    fun search(type: SearchType, value: String, limit: Integer?): String {
-        return with(get("$BASE_URL&mode=search&${type.queryParam}=$value&limit=${limit ?: 25}")) {
-            body()?.string() ?: ""
-        }
+    fun search(type: SearchType, value: String, limit: Integer?): Future<String> {
+        return executor.submit(Callable {
+            get("$BASE_URL&mode=search&${type.queryParam}=$value&limit=${limit ?: 25}")
+                .body()?.string() ?: ""
+        })
     }
 
-    fun searchKeyword(keyword: String, limit: Integer?): String {
+    fun searchKeyword(keyword: String, limit: Integer?): Future<String> {
         return search(SearchType.KEYWORD, keyword, limit)
     }
 
-    fun searchImdb(imdbId: String, limit: Integer?): String {
+    fun searchImdb(imdbId: String, limit: Integer?): Future<String> {
         return search(SearchType.IMDB, imdbId, limit)
     }
 }

@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Future;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -135,17 +136,17 @@ public class RssService {
             Integer limit = tryParse(req.queryParams("limit"));
             String regex = req.queryParams("regex");
 
-            String searchResult = null;
-
+            Future<String> searchRequest;
             if (!StringUtils.isBlank(searchKeywords)) {
-                searchResult = rarbgApi.searchKeyword(searchKeywords, limit);
+                searchRequest = rarbgApi.searchKeyword(searchKeywords, limit);
             } else if (!StringUtils.isBlank(searchImdb)) {
-                searchResult = rarbgApi.searchImdb(searchImdb, limit);
+                searchRequest = rarbgApi.searchImdb(searchImdb, limit);
             } else {
                 resp.status(400);
                 return "Invalid parameters.";
             }
 
+            String searchResult = searchRequest.get(); // wait until it is done
             Optional<JsonArray> arrOpt = Optional.ofNullable(new JsonParser().parse(searchResult)
                     .getAsJsonObject()
                     .getAsJsonArray("torrent_results"));
