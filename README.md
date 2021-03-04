@@ -4,15 +4,15 @@ Web APIs for xpath evaluation and turning HTML to RSS with [Saxon](http://www.sa
 
 Endpoints
 
-- `/xeva` - `Evaulate xpath`
+- `GET /xeva` - `Evaulate xpath`
     - `src` - URI or base64 encoded html
     - `xpath` - xpath to evaluate
-- `/rssthis` - `Construct RSS source with xpath`
+- `GET /rssthis` - `Construct RSS source with xpath`
     - `src` - URI or base64 encoded html
     - `title_xpath` - xpath to extract item title
     - `link_xpath` - xpath to extract item link
     - `desc_xpath` - xpath to extract item description
-- `/rarbg`
+- `GET /rarbg`
     - `search_string` - string to search with
     - `search_imdb` - IMDB title id
     - `limit` - search result records limit
