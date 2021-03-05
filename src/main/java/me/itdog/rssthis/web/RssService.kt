@@ -234,7 +234,7 @@ class RssService(val port: Int, val proxy: Proxy?) {
 
             if (apiResult == null) {
                 resp.status(500)
-                return@get "Failed to parse search result"
+                return@get "Failed to parse search result. $searchResult"
             }
 
             if (!StringUtils.isBlank(regex)) {
