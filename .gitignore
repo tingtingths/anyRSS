@@ -24,3 +24,11 @@ HELP.md
 /nbdist/
 /.nb-gradle/
 /build/
+
+
+### build system ###
+.gradle/
+.mvn/
+gradlew
+gradlew.bat
+gradle/
