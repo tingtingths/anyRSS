@@ -4,8 +4,8 @@
 
 plugins {
     java
-    `maven-publish`
     id("net.researchgate.release") version "2.8.1"
+    kotlin("jvm") version "1.4.31"
 }
 
 repositories {
@@ -34,18 +34,38 @@ dependencies {
 group = "me.itdog"
 version = "0.0.3-SNAPSHOT"
 description = "rssthis"
-java.sourceCompatibility = JavaVersion.VERSION_1_8
 
-publishing {
-    publications.create<MavenPublication>("maven") {
-        from(components["java"])
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    kotlinOptions {
+        jvmTarget = "1.8"
     }
 }
 
-release {
-    failOnUpdateNeeded = false
-}
+tasks.jar {
+    manifest {
+        attributes(
+            "Main-Class" to "me.itdog.rssthis.RssThisApplicationKt"
+        )
+    }
 
-fun checkUpdateNeeded(): Boolean {
-    return true
+    eachFile {
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        if (this.sourceName.endsWith(".html")
+            || this.sourceName.endsWith(".txt")) {
+            //println("${this.sourceName} -> ${this.file.absolutePath}")
+        }
+    }
+
+    from(
+        configurations.compileClasspath.get().map {
+            if (it.isDirectory) it else zipTree(it)
+        }
+    )
+
+    exclude("META-INF/*.RSA", "META-INF/*.SF","META-INF/*.DSA")
 }
