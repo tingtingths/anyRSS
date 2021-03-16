@@ -204,8 +204,6 @@ class RssService(val port: Int, val proxy: Proxy?) {
 
         // endpoint /rarbg, rarbg api wrap
         Spark.get("/rarbg") { req, resp ->
-            val evaluator = HtmlEvaluator()
-
             // params
             val searchKeywords = req.queryParams("search_string")
             val searchImdb = req.queryParams("search_imdb")
