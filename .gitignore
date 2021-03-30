@@ -29,6 +29,6 @@ HELP.md
 ### build system ###
 .gradle/
 .mvn/
-gradlew
-gradlew.bat
+#gradlew
+#gradlew.bat
 gradle/
