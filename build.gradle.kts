@@ -67,5 +67,7 @@ tasks.jar {
         }
     )
 
+    archiveFileName.set("rssthis.jar")
+
     exclude("META-INF/*.RSA", "META-INF/*.SF","META-INF/*.DSA")
 }
