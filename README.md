@@ -1,4 +1,4 @@
-# RSSTHIS
+# anyRSS
 
 Web APIs for xpath evaluation and turning HTML to RSS with [Saxon](http://www.saxonica.com/documentation/).
 
