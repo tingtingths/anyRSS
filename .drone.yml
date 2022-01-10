@@ -1,13 +1,17 @@
 kind: pipeline
 type: docker
-name: default
+name: arm64-build
 
 trigger:
   event:
     - tag
 
+platform:
+  os: linux
+  arch: arm64
+
 steps:
-  - name: build-and-push
+  - name: build
     image: plugins/docker
     settings:
       username:
@@ -16,5 +20,76 @@ steps:
         from_secret: docker_password
       repo: tingtingths/rssthis
       tag:
-        - latest
-        - ${DRONE_TAG}
+        - ${DRONE_TAG}-${DRONE_STAGE_ARCH}
+
+---
+kind: pipeline
+type: docker
+name: amd64-build
+
+trigger:
+  event:
+    - tag
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+  - name: build
+    image: plugins/docker
+    settings:
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+      repo: tingtingths/rssthis
+      tag:
+        - ${DRONE_TAG}-${DRONE_STAGE_ARCH}
+
+---
+kind: pipeline
+type: docker
+name: package-with-manifest
+
+trigger:
+  event:
+    - tag
+
+depends_on:
+  - amd64-build
+  - arm64-build
+
+steps:
+  - name: manifest-by-tag
+    image: plugins/manifest
+    settings:
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+      target: tingtingths/rssthis:${DRONE_TAG:=none}
+      template: tingtingths/rssthis:${DRONE_TAG:=none}-ARCH
+      platforms:
+        - linux/amd64
+        - linux/arm64
+    when:
+      event:
+        - tag
+
+  - name: manifest-by-tag-latest
+    image: plugins/manifest
+    settings:
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+      target: tingtingths/rssthis:latest
+      template: tingtingths/rssthis:${DRONE_TAG:=none}-ARCH
+      platforms:
+        - linux/amd64
+        - linux/arm64
+    when:
+      event:
+        - tag
+
